@@ -1,0 +1,10 @@
+Está área é para mostrar um pouco dos meus pensamentos e decisões de arquitertura, código e tecnologia.
+
+Decidi utilizar Clean architecture motivado por sua simplicidade, padrões claros e legibilidade
+utilizando do padrão adotado pela comunidade cmd, internal e pkg para as pastas.
+
+Para começar é importante focar na parte que eu acho ser crítica, então escolhi o JWT para iniciar o importador.
+
+Encotrei esse tutorial ótimo para se basear na implementação do JWT
+https://medium.com/@cheickzida/golang-implementing-jwt-token-authentication-bba9bfd84d60
+
