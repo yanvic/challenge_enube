@@ -1,72 +1,80 @@
 package main
 
-import (
-	"database/sql"
-	"log"
-	"net/http"
-	"os"
-	"time"
-
-	"github.com/gorilla/mux"
-	"github.com/joho/godotenv"
-
-	"challenge_enube/internal/database"
-	"challenge_enube/internal/handlers"
-	"challenge_enube/internal/models"
-	"challenge_enube/internal/service"
-	// "challenge_enube/internal/repository"
-	"challenge_enube/internal/usecase"
-    // "challenge_enube/internal/jobs"
-)
-
-func main() {
-	_ = godotenv.Load()
-
-	databaseConn, err := database.Connect(os.Getenv("DATABASE_URL"))
-	if err != nil {
-		log.Fatal("Failed to connect to database:", err)
-	}
-	defer databaseConn.Close()
-
-	initDatabase(databaseConn)
-
-	userRepo := models.NewUserRepository(databaseConn)
-
-    // orderRepo := repository.NewOrderRepository(databaseConn)
-    // partnerRepo := repository.NewPartnerRepository(databaseConn)
-    // customerRepo := repository.NewCustomerRepository(databaseConn)
-    // subscriptionRepo := repository.NewSubscriptionRepository(databaseConn)
-    // productRepo := repository.NewProductRepository(databaseConn)
-    // invoiceRepo := repository.NewInvoiceRepository(databaseConn)
-    // meterRepo := repository.NewMeterRepository(databaseConn)
-    // billingFinancialRepo := repository.NewBillingFinancialRepository(databaseConn)
-    // billingRepo := repository.NewBillingRepository(databaseConn)
+    import (
+        "database/sql"
+        "log"
+        "net/http"
+        "os"
+        "time"
     
-	authService := service.NewAuthService(userRepo, os.Getenv("JWT_SECRET"), time.Hour*24)
-	authHandler := handlers.NewAuthHandler(authService)
-
-	importUC := usecase.NewImportUseCase(databaseConn)
-	importHandler := handlers.NewImportHandler(importUC)
-
-	router := mux.NewRouter()
-
-	router.HandleFunc("/register", authHandler.Register).Methods("POST")
-	router.HandleFunc("/login", authHandler.Login).Methods("POST")
-
-	router.HandleFunc("/home", authService.JWTMiddleware(handlers.HomeHandler)).Methods("GET")
-	router.HandleFunc("/import", authService.JWTMiddleware(handlers.TestHandler)).Methods("GET")
-    router.HandleFunc("/excel", authService.JWTMiddleware(importHandler.HandlerExcel)).Methods("POST")
+        "github.com/gorilla/mux"
+        "github.com/joho/godotenv"
     
+        "challenge_enube/internal/database"
+        "challenge_enube/internal/handlers"
+        "challenge_enube/internal/models"
+        "challenge_enube/internal/service"
+        "challenge_enube/internal/usecase"
+    )
 
-
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
-
-	log.Println("Server running on port", port)
-	log.Fatal(http.ListenAndServe(":"+port, router))
-}
+    func main() {
+        _ = godotenv.Load()
+    
+        // Conexão com o DB
+        databaseConn, err := database.Connect(os.Getenv("DATABASE_URL"))
+        if err != nil {
+            log.Fatal("Failed to connect to database:", err)
+        }
+        defer databaseConn.Close()
+    
+        initDatabase(databaseConn)
+    
+        // Repositórios e serviços
+        userRepo := models.NewUserRepository(databaseConn)
+        authService := service.NewAuthService(userRepo, os.Getenv("JWT_SECRET"), time.Hour*24)
+        authHandler := handlers.NewAuthHandler(authService)
+    
+        importUC := usecase.NewImportUseCase(databaseConn)
+        importHandler := handlers.NewImportHandler(importUC)
+    
+        partnersHandler := handlers.NewPartnersHandler(databaseConn)
+        customersHandler := handlers.NewCustomersHandler(databaseConn)
+        productsHandler := handlers.NewProductsHandler(databaseConn)
+        billingHandler := handlers.NewBillingHandler(databaseConn)
+    
+        // Rotas
+        router := mux.NewRouter()
+    
+        // Auth
+        router.HandleFunc("/register", authHandler.Register).Methods("POST")
+        router.HandleFunc("/login", authHandler.Login).Methods("POST")
+    
+        // Excel
+        router.HandleFunc("/excel", authService.JWTMiddleware(importHandler.HandlerExcel)).Methods("POST")
+    
+        // Partners
+        router.HandleFunc("/partners", authService.JWTMiddleware(partnersHandler.PartnersSummary)).Methods("GET")
+    
+        // Customers
+        router.HandleFunc("/customers", authService.JWTMiddleware(customersHandler.CustomersSummary)).Methods("GET")
+        router.HandleFunc("/customers/{id}/billing", authService.JWTMiddleware(customersHandler.BillingByCustomer)).Methods("GET")
+    
+        // Products
+        router.HandleFunc("/products", authService.JWTMiddleware(productsHandler.ProductsSummary)).Methods("GET")
+        router.HandleFunc("/skus", authService.JWTMiddleware(productsHandler.SKUsSummary)).Methods("GET")
+    
+        // Billing
+        router.HandleFunc("/billing/monthly", authService.JWTMiddleware(billingHandler.BillingByMonth)).Methods("GET")
+    
+        // Start server
+        port := os.Getenv("PORT")
+        if port == "" {
+            port = "8080"
+        }
+    
+        log.Println("Server running on port", port)
+        log.Fatal(http.ListenAndServe(":"+port, router))
+    }
 
 func initDatabase(db *sql.DB) {
 	_, err := db.Exec(`CREATE EXTENSION IF NOT EXISTS "pgcrypto";`)
