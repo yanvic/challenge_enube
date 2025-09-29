@@ -1,80 +1,91 @@
 package main
 
-    import (
-        "database/sql"
-        "log"
-        "net/http"
-        "os"
-        "time"
-    
-        "github.com/gorilla/mux"
-        "github.com/joho/godotenv"
-    
-        "challenge_enube/internal/database"
-        "challenge_enube/internal/handlers"
-        "challenge_enube/internal/models"
-        "challenge_enube/internal/service"
-        "challenge_enube/internal/usecase"
-    )
+import (
+	"challenge_enube/internal/database"
+	"challenge_enube/internal/handlers"
+	"challenge_enube/internal/models"
+	"challenge_enube/internal/service"
+	"challenge_enube/internal/usecase"
+	"database/sql"
+	"log"
+	"net/http"
+	"os"
+	"time"
 
-    func main() {
-        _ = godotenv.Load()
-    
-        // Conexão com o DB
-        databaseConn, err := database.Connect(os.Getenv("DATABASE_URL"))
-        if err != nil {
-            log.Fatal("Failed to connect to database:", err)
-        }
-        defer databaseConn.Close()
-    
-        initDatabase(databaseConn)
-    
-        // Repositórios e serviços
-        userRepo := models.NewUserRepository(databaseConn)
-        authService := service.NewAuthService(userRepo, os.Getenv("JWT_SECRET"), time.Hour*24)
-        authHandler := handlers.NewAuthHandler(authService)
-    
-        importUC := usecase.NewImportUseCase(databaseConn)
-        importHandler := handlers.NewImportHandler(importUC)
-    
-        partnersHandler := handlers.NewPartnersHandler(databaseConn)
-        customersHandler := handlers.NewCustomersHandler(databaseConn)
-        productsHandler := handlers.NewProductsHandler(databaseConn)
-        billingHandler := handlers.NewBillingHandler(databaseConn)
-    
-        // Rotas
-        router := mux.NewRouter()
-    
-        // Auth
-        router.HandleFunc("/register", authHandler.Register).Methods("POST")
-        router.HandleFunc("/login", authHandler.Login).Methods("POST")
-    
-        // Excel
-        router.HandleFunc("/excel", authService.JWTMiddleware(importHandler.HandlerExcel)).Methods("POST")
-    
-        // Partners
-        router.HandleFunc("/partners", authService.JWTMiddleware(partnersHandler.PartnersSummary)).Methods("GET")
-    
-        // Customers
-        router.HandleFunc("/customers", authService.JWTMiddleware(customersHandler.CustomersSummary)).Methods("GET")
-        router.HandleFunc("/customers/{id}/billing", authService.JWTMiddleware(customersHandler.BillingByCustomer)).Methods("GET")
-    
-        // Products
-        router.HandleFunc("/products", authService.JWTMiddleware(productsHandler.ProductsSummary)).Methods("GET")
-        router.HandleFunc("/skus", authService.JWTMiddleware(productsHandler.SKUsSummary)).Methods("GET")
-    
-        // Billing
-        router.HandleFunc("/billing/monthly", authService.JWTMiddleware(billingHandler.BillingByMonth)).Methods("GET")
-    
-        // Start server
-        port := os.Getenv("PORT")
-        if port == "" {
-            port = "8080"
-        }
-    
-        log.Println("Server running on port", port)
-        log.Fatal(http.ListenAndServe(":"+port, router))
-    }
+	"github.com/gorilla/mux"
+	"github.com/joho/godotenv"
+	"github.com/rs/cors"
+)
+
+func main() {
+	_ = godotenv.Load()
+
+	// Conexão com o DB
+	databaseConn, err := database.Connect(os.Getenv("DATABASE_URL"))
+	if err != nil {
+		log.Fatal("Failed to connect to database:", err)
+	}
+	defer databaseConn.Close()
+
+	initDatabase(databaseConn)
+
+	// Repositórios e serviços
+	userRepo := models.NewUserRepository(databaseConn)
+	authService := service.NewAuthService(userRepo, os.Getenv("JWT_SECRET"), time.Hour*24)
+	authHandler := handlers.NewAuthHandler(authService)
+
+	importUC := usecase.NewImportUseCase(databaseConn)
+	importHandler := handlers.NewImportHandler(importUC)
+
+	partnersHandler := handlers.NewPartnersHandler(databaseConn)
+	customersHandler := handlers.NewCustomersHandler(databaseConn)
+	productsHandler := handlers.NewProductsHandler(databaseConn)
+	billingHandler := handlers.NewBillingHandler(databaseConn)
+
+	// Rotas
+	router := mux.NewRouter()
+
+	// Auth
+	router.HandleFunc("/register", authHandler.Register).Methods("POST")
+	router.HandleFunc("/login", authHandler.Login).Methods("POST")
+
+	// Excel
+	router.HandleFunc("/excel", authService.JWTMiddleware(importHandler.HandlerExcel)).Methods("POST")
+
+	// Partners
+	router.HandleFunc("/partners", authService.JWTMiddleware(partnersHandler.PartnersSummary)).Methods("GET")
+
+	// Customers
+	router.HandleFunc("/customers", authService.JWTMiddleware(customersHandler.CustomersSummary)).Methods("GET")
+	router.HandleFunc("/customers/{id}/billing", authService.JWTMiddleware(customersHandler.BillingByCustomer)).Methods("GET")
+
+	// Products
+	router.HandleFunc("/products", authService.JWTMiddleware(productsHandler.ProductsSummary)).Methods("GET")
+	router.HandleFunc("/skus", authService.JWTMiddleware(productsHandler.SKUsSummary)).Methods("GET")
+
+	// Billing
+	router.HandleFunc("/billing/monthly", authService.JWTMiddleware(billingHandler.BillingByMonth)).Methods("GET")
+
+	c := cors.New(cors.Options{
+		AllowedOrigins:   []string{"http://localhost:3000"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Authorization", "Content-Type"},
+		AllowCredentials: true,
+	})
+
+	handler := c.Handler(router)
+
+	http.ListenAndServe(":8080", handler)
+
+	// Start server
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	log.Println("Server running on port", port)
+	log.Fatal(http.ListenAndServe(":"+port, router))
+}
 
 func initDatabase(db *sql.DB) {
 	_, err := db.Exec(`CREATE EXTENSION IF NOT EXISTS "pgcrypto";`)
@@ -115,18 +126,18 @@ func initDatabase(db *sql.DB) {
 		log.Fatalf("Erro ao criar índice refresh_tokens: %v", err)
 	}
 
-    // Tables Excel
-    _, err = db.Exec(`
+	// Tables Excel
+	_, err = db.Exec(`
     CREATE TABLE IF NOT EXISTS partners (
         partner_id TEXT PRIMARY KEY,
         partner_name TEXT NOT NULL
     );
     `)
-    if err != nil {
-        log.Fatalf("Erro ao criar tabela partners: %v", err)
-    }
+	if err != nil {
+		log.Fatalf("Erro ao criar tabela partners: %v", err)
+	}
 
-    _, err = db.Exec(`
+	_, err = db.Exec(`
     CREATE TABLE IF NOT EXISTS customers (
         customer_id TEXT PRIMARY KEY,
         customer_name TEXT NOT NULL,
@@ -135,11 +146,11 @@ func initDatabase(db *sql.DB) {
         partner_id TEXT REFERENCES partners(partner_id)
     );
     `)
-    if err != nil {
-        log.Fatalf("Erro ao criar tabela customers: %v", err)
-    }
+	if err != nil {
+		log.Fatalf("Erro ao criar tabela customers: %v", err)
+	}
 
-    _, err = db.Exec(`
+	_, err = db.Exec(`
     CREATE TABLE IF NOT EXISTS products (
         product_id TEXT PRIMARY KEY,
         product_name TEXT NOT NULL,
@@ -147,11 +158,11 @@ func initDatabase(db *sql.DB) {
         publisher_name TEXT
     );
     `)
-    if err != nil {
-        log.Fatalf("Erro ao criar tabela products: %v", err)
-    }
+	if err != nil {
+		log.Fatalf("Erro ao criar tabela products: %v", err)
+	}
 
-    _, err = db.Exec(`
+	_, err = db.Exec(`
     CREATE TABLE IF NOT EXISTS skus (
         sku_id TEXT PRIMARY KEY,
         sku_name TEXT,
@@ -159,11 +170,11 @@ func initDatabase(db *sql.DB) {
         availability_id TEXT
     );
     `)
-    if err != nil {
-        log.Fatalf("Erro ao criar tabela skus: %v", err)
-    }
+	if err != nil {
+		log.Fatalf("Erro ao criar tabela skus: %v", err)
+	}
 
-    _, err = db.Exec(`
+	_, err = db.Exec(`
     CREATE TABLE IF NOT EXISTS subscriptions (
         subscription_id TEXT PRIMARY KEY,
         subscription_description TEXT,
@@ -172,11 +183,11 @@ func initDatabase(db *sql.DB) {
         usage_date DATE
     );
     `)
-    if err != nil {
-        log.Fatalf("Erro ao criar tabela subscriptions: %v", err)
-    }
+	if err != nil {
+		log.Fatalf("Erro ao criar tabela subscriptions: %v", err)
+	}
 
-    _, err = db.Exec(`
+	_, err = db.Exec(`
     CREATE TABLE IF NOT EXISTS meters (
         meter_id TEXT PRIMARY KEY,
         meter_name TEXT,
@@ -187,11 +198,11 @@ func initDatabase(db *sql.DB) {
         unit TEXT
     );
     `)
-    if err != nil {
-        log.Fatalf("Erro ao criar tabela meters: %v", err)
-    }
+	if err != nil {
+		log.Fatalf("Erro ao criar tabela meters: %v", err)
+	}
 
-    _, err = db.Exec(`
+	_, err = db.Exec(`
     CREATE TABLE IF NOT EXISTS billing_records (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         invoice_number TEXT,
@@ -226,11 +237,9 @@ func initDatabase(db *sql.DB) {
         benefit_type TEXT
     );
     `)
-    if err != nil {
-        log.Fatalf("Erro ao criar tabela billing_records: %v", err)
-    }
+	if err != nil {
+		log.Fatalf("Erro ao criar tabela billing_records: %v", err)
+	}
 
 	log.Println("Banco de dados inicializado com sucesso!")
 }
-
-

@@ -19,7 +19,9 @@ services:
 
   go-app:
     container_name: go-app
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.go
     environment:
       DATABASE_URL: "host=postgres_db user=admin password=admin dbname=challenge sslmode=disable"
       JWT_SECRET: "supersecretjwtkey123456"
@@ -28,6 +30,16 @@ services:
     depends_on:
       postgres_db:
         condition: service_healthy
+
+  react-app:
+    container_name: react-app
+    build:
+      context: ./front
+      dockerfile: Dockerfile.react
+    ports:
+      - "3000:3000"
+    depends_on:
+      - go-app
 
   adminer:
     image: adminer
