@@ -3,7 +3,7 @@ package database
 import (
     "database/sql"
     "log"
-
+    "time"
     _ "github.com/lib/pq"
 )
 
@@ -12,6 +12,11 @@ func Connect(connectionString string) (*sql.DB, error) {
     if err != nil {
         return nil, err
     }
+
+    db.SetMaxOpenConns(10)
+    db.SetMaxIdleConns(5)
+    db.SetConnMaxLifetime(time.Minute * 5)
+
 
     if err := db.Ping(); err != nil {
         return nil, err

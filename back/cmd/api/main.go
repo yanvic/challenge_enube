@@ -14,9 +14,9 @@ import (
 	"challenge_enube/internal/handlers"
 	"challenge_enube/internal/models"
 	"challenge_enube/internal/service"
-	"challenge_enube/internal/repository"
+	// "challenge_enube/internal/repository"
 	"challenge_enube/internal/usecase"
-    "challenge_enube/internal/jobs"
+    // "challenge_enube/internal/jobs"
 )
 
 func main() {
@@ -30,18 +30,23 @@ func main() {
 
 	initDatabase(databaseConn)
 
-    jobs.StartWorker()
-
 	userRepo := models.NewUserRepository(databaseConn)
-    clientRepo := repository.NewClientRepository(databaseConn)
-    orderRepo := repository.NewOrderRepository(databaseConn)
 
+    // orderRepo := repository.NewOrderRepository(databaseConn)
+    // partnerRepo := repository.NewPartnerRepository(databaseConn)
+    // customerRepo := repository.NewCustomerRepository(databaseConn)
+    // subscriptionRepo := repository.NewSubscriptionRepository(databaseConn)
+    // productRepo := repository.NewProductRepository(databaseConn)
+    // invoiceRepo := repository.NewInvoiceRepository(databaseConn)
+    // meterRepo := repository.NewMeterRepository(databaseConn)
+    // billingFinancialRepo := repository.NewBillingFinancialRepository(databaseConn)
+    // billingRepo := repository.NewBillingRepository(databaseConn)
+    
 	authService := service.NewAuthService(userRepo, os.Getenv("JWT_SECRET"), time.Hour*24)
 	authHandler := handlers.NewAuthHandler(authService)
-    importUseCase := usecase.NewImportUseCase(clientRepo, orderRepo)
-    importHandler := handlers.NewImportHandler(importUseCase)
 
-    // importHandler := handlers.NewImportHandler(importUseCase)
+	importUC := usecase.NewImportUseCase(databaseConn)
+	importHandler := handlers.NewImportHandler(importUC)
 
 	router := mux.NewRouter()
 
@@ -102,137 +107,119 @@ func initDatabase(db *sql.DB) {
 		log.Fatalf("Erro ao criar índice refresh_tokens: %v", err)
 	}
 
-    _, err = db.Exec(`
-       CREATE TABLE IF NOT EXISTS clients (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            algo_id VARCHAR(50) UNIQUE NOT NULL,
-            nome VARCHAR(255) NOT NULL
-        );
-    `)
-	if err != nil {
-		log.Fatalf("Erro ao criar tabela clients: %v", err)
-	}
-    
-    _, err = db.Exec(`
-        CREATE TABLE IF NOT EXISTS orders (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            order_id VARCHAR(50) UNIQUE NOT NULL,
-            product VARCHAR(255) NOT NULL,
-            amount INT NOT NULL,
-            client_id UUID NOT NULL REFERENCES clients(id) ON DELETE CASCADE
-        );
-    `)
-	if err != nil {
-		log.Fatalf("Erro ao criar tabela orders: %v", err)
-	}
-
     // Tables Excel
     _, err = db.Exec(`
-        CREATE TABLE IF NOT EXISTS partners (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            partner_id VARCHAR(50) UNIQUE NOT NULL,
-            name VARCHAR(255) NOT NULL
-        );
+    CREATE TABLE IF NOT EXISTS partners (
+        partner_id TEXT PRIMARY KEY,
+        partner_name TEXT NOT NULL
+    );
     `)
     if err != nil {
-        log.Fatalf("Erro ao criar tabelas partners: %v", err)
+        log.Fatalf("Erro ao criar tabela partners: %v", err)
     }
 
     _, err = db.Exec(`
-        CREATE TABLE IF NOT EXISTS customers (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            customer_id VARCHAR(50) UNIQUE NOT NULL,
-            name VARCHAR(255),
-            domain_name VARCHAR(255),
-            country VARCHAR(50),
-            partner_id UUID NOT NULL REFERENCES partners(id) ON DELETE CASCADE
-        );
-     `)
+    CREATE TABLE IF NOT EXISTS customers (
+        customer_id TEXT PRIMARY KEY,
+        customer_name TEXT NOT NULL,
+        customer_domain TEXT,
+        customer_country TEXT,
+        partner_id TEXT REFERENCES partners(partner_id)
+    );
+    `)
     if err != nil {
-        log.Fatalf("Erro ao criar tabela customer: %v", err)
+        log.Fatalf("Erro ao criar tabela customers: %v", err)
     }
 
     _, err = db.Exec(`
-       CREATE TABLE IF NOT EXISTS products (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            product_id VARCHAR(50) NOT NULL,
-            sku_id VARCHAR(50),
-            sku_name VARCHAR(255),
-            product_name VARCHAR(255),
-            publisher_id VARCHAR(50),
-            publisher_name VARCHAR(255)
-        );
-     `)
+    CREATE TABLE IF NOT EXISTS products (
+        product_id TEXT PRIMARY KEY,
+        product_name TEXT NOT NULL,
+        publisher_id TEXT,
+        publisher_name TEXT
+    );
+    `)
     if err != nil {
         log.Fatalf("Erro ao criar tabela products: %v", err)
     }
 
     _, err = db.Exec(`
-        CREATE TABLE IF NOT EXISTS subscriptions (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            subscription_id VARCHAR(50) NOT NULL,
-            description TEXT,
-            customer_id UUID REFERENCES customers(id),
-            product_id UUID REFERENCES products(id)
-        );
+    CREATE TABLE IF NOT EXISTS skus (
+        sku_id TEXT PRIMARY KEY,
+        sku_name TEXT,
+        product_id TEXT REFERENCES products(product_id),
+        availability_id TEXT
+    );
     `)
     if err != nil {
-        log.Fatalf("Erro ao criar tabela subs: %v", err)
+        log.Fatalf("Erro ao criar tabela skus: %v", err)
     }
 
     _, err = db.Exec(`
-        CREATE TABLE IF NOT EXISTS invoices (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            invoice_number VARCHAR(50) NOT NULL,
-            customer_id UUID REFERENCES customers(id)
-        );
+    CREATE TABLE IF NOT EXISTS subscriptions (
+        subscription_id TEXT PRIMARY KEY,
+        subscription_description TEXT,
+        charge_start_date DATE,
+        charge_end_date DATE,
+        usage_date DATE
+    );
     `)
     if err != nil {
-    log.Fatalf("Erro ao criar tabela invoice: %v", err)
+        log.Fatalf("Erro ao criar tabela subscriptions: %v", err)
     }
 
     _, err = db.Exec(`
-        CREATE TABLE IF NOT EXISTS meters (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            meter_id VARCHAR(50) NOT NULL,
-            meter_type VARCHAR(50),
-            meter_category VARCHAR(50),
-            meter_sub_category VARCHAR(50),
-            meter_name VARCHAR(255),
-            meter_region VARCHAR(50),
-            invoice_id UUID REFERENCES invoices(id),
-            product_id UUID REFERENCES products(id)
-        );
+    CREATE TABLE IF NOT EXISTS meters (
+        meter_id TEXT PRIMARY KEY,
+        meter_name TEXT,
+        meter_type TEXT,
+        meter_category TEXT,
+        meter_sub_category TEXT,
+        meter_region TEXT,
+        unit TEXT
+    );
     `)
     if err != nil {
-    log.Fatalf("Erro ao criar tabela meters: %v", err)
+        log.Fatalf("Erro ao criar tabela meters: %v", err)
     }
 
     _, err = db.Exec(`
-        CREATE TABLE IF NOT EXISTS billing (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            invoice_id UUID REFERENCES invoices(id),
-            meter_id UUID REFERENCES meters(id),
-            unit_price NUMERIC,
-            quantity NUMERIC,
-            unit_type VARCHAR(50),
-            pre_tax_total NUMERIC,
-            currency VARCHAR(10),
-            effective_unit_price NUMERIC,
-            pc_to_bc_exchange_rate NUMERIC,
-            pc_to_bc_exchange_rate_date DATE,
-            entitlement_id VARCHAR(50),
-            entitlement_description TEXT,
-            partner_earned_credit_percentage NUMERIC,
-            credit_percentage NUMERIC,
-            credit_type VARCHAR(50),
-            benefit_order_id VARCHAR(50),
-            benefit_id VARCHAR(50),
-            benefit_type VARCHAR(50)
-        );
+    CREATE TABLE IF NOT EXISTS billing_records (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        invoice_number TEXT,
+        partner_id TEXT REFERENCES partners(partner_id),
+        customer_id TEXT REFERENCES customers(customer_id),
+        sku_id TEXT REFERENCES skus(sku_id),
+        subscription_id TEXT REFERENCES subscriptions(subscription_id),
+        meter_id TEXT REFERENCES meters(meter_id),
+        resource_location TEXT,
+        consumed_service TEXT,
+        resource_group TEXT,
+        resource_uri TEXT,
+        charge_type TEXT,
+        unit_type TEXT,
+        unit_price NUMERIC,
+        quantity NUMERIC,
+        billing_pre_tax_total NUMERIC,
+        billing_currency TEXT,
+        pricing_pre_tax_total NUMERIC,
+        pricing_currency TEXT,
+        additional_info JSONB,
+        effective_unit_price NUMERIC,
+        pc_to_bc_exchange_rate NUMERIC,
+        pc_to_bc_exchange_rate_date DATE,
+        entitlement_id TEXT,
+        entitlement_description TEXT,
+        partner_earned_credit_percentage NUMERIC,
+        credit_percentage NUMERIC,
+        credit_type TEXT,
+        benefit_order_id TEXT,
+        benefit_id TEXT,
+        benefit_type TEXT
+    );
     `)
     if err != nil {
-    log.Fatalf("Erro ao criar tabela billings: %v", err)
+        log.Fatalf("Erro ao criar tabela billing_records: %v", err)
     }
 
 	log.Println("Banco de dados inicializado com sucesso!")

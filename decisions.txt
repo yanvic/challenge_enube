@@ -11,3 +11,7 @@ https://medium.com/@cheickzida/golang-implementing-jwt-token-authentication-bba9
 Nesse desafio o núcleo é o excel a manipulação e a inserção dos dados. Para isso utilizarei a mais famosa lib de go para isso (excelize), 
 foi bem tranquilo pois já tinha utilizado por sinal encontrei a playlist que me ajudou da primeira vez que utilizei
 https://youtube.com/playlist?list=PLW-1ky8wqAU7ZqtH-xEVAQNqjarVc0pTl&si=bC-Rp5wvAb2LOMsg
+
+Enquanto testava eu percebi que era inviável a rota esperar o excel, pensei em utilizar mensageria mas era "tentar matar barata com uma basuca".
+Por isso decidi utilizar e aproveitar o melhor de golang que é sua perfomance e concorrência utilizando goroutines.
+
