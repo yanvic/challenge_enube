@@ -18,23 +18,14 @@ func NewCustomersHandler(db *sql.DB) *CustomersHandler {
 }
 
 func (h *CustomersHandler) CustomersSummary(w http.ResponseWriter, r *http.Request) {
-	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
-	if page < 1 {
-		page = 1
-	}
-	pageSize, _ := strconv.Atoi(r.URL.Query().Get("pageSize"))
-	if pageSize < 1 {
-		pageSize = 50
-	}
-	offset := (page - 1) * pageSize
-
 	rows, err := h.DB.Query(`
-		SELECT customer_id, SUM(billing_pre_tax_total) AS total
-		FROM billing_records
-		GROUP BY customer_id
+		SELECT c.customer_name, SUM(b.billing_pre_tax_total) AS total
+		FROM billing_records b
+		LEFT JOIN customers c ON b.customer_id = c.customer_id
+		GROUP BY c.customer_name
 		ORDER BY total DESC
-		LIMIT $1 OFFSET $2
-	`, pageSize, offset)
+		LIMIT 10
+	`)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -43,12 +34,12 @@ func (h *CustomersHandler) CustomersSummary(w http.ResponseWriter, r *http.Reque
 
 	result := []map[string]interface{}{}
 	for rows.Next() {
-		var id string
+		var name string
 		var total float64
-		rows.Scan(&id, &total)
+		rows.Scan(&name, &total)
 		result = append(result, map[string]interface{}{
-			"customer_id": id,
-			"total":       total,
+			"customer": name,
+			"total":    total,
 		})
 	}
 
@@ -89,13 +80,13 @@ func (h *CustomersHandler) BillingByCustomer(w http.ResponseWriter, r *http.Requ
 		var total float64
 		rows.Scan(&invoice, &sku, &sub, &meter, &total, &currency, &charge)
 		result = append(result, map[string]interface{}{
-			"invoice":           invoice,
-			"sku_id":            sku,
-			"subscription_id":   sub,
-			"meter_id":          meter,
+			"invoice":               invoice,
+			"sku_id":                sku,
+			"subscription_id":       sub,
+			"meter_id":              meter,
 			"billing_pre_tax_total": total,
-			"billing_currency":  currency,
-			"charge_type":       charge,
+			"billing_currency":      currency,
+			"charge_type":           charge,
 		})
 	}
 

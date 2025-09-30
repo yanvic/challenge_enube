@@ -25,7 +25,7 @@ export default function ImportPage() {
           setProgress(pct);
         },
       });
-      alert("Import concluído com sucesso!");
+      alert("Upload realizado, aguarde o processamento.");
       navigate("/home");
     } catch (err) {
       console.error(err);

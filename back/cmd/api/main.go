@@ -18,7 +18,11 @@ import (
 )
 
 func main() {
-	_ = godotenv.Load()
+	_ = godotenv.Load("../../.env")
+
+	if os.Getenv("DATABASE_URL") == "" {
+		log.Fatal("DATABASE_URL is not set or .env file not found")
+	}
 
 	// Conexão com o DB
 	databaseConn, err := database.Connect(os.Getenv("DATABASE_URL"))
@@ -41,6 +45,7 @@ func main() {
 	customersHandler := handlers.NewCustomersHandler(databaseConn)
 	productsHandler := handlers.NewProductsHandler(databaseConn)
 	billingHandler := handlers.NewBillingHandler(databaseConn)
+	metricsHandler := handlers.NewMetricsHandler(databaseConn)
 
 	// Rotas
 	router := mux.NewRouter()
@@ -65,6 +70,9 @@ func main() {
 
 	// Billing
 	router.HandleFunc("/billing/monthly", authService.JWTMiddleware(billingHandler.BillingByMonth)).Methods("GET")
+
+	// Metrics
+	router.HandleFunc("/metrics", authService.JWTMiddleware(metricsHandler.UsageSummary)).Methods("GET")
 
 	c := cors.New(cors.Options{
 		AllowedOrigins:   []string{"http://localhost:3000"},

@@ -1,96 +1,101 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import api from "../api";
+import React, { useEffect, useState } from "react";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 
 export default function Home() {
-  const [partners, setPartners] = useState([]);
-  const [filter, setFilter] = useState("");
-  const [monthFilter, setMonthFilter] = useState("");
-  const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
+  const [metrics, setMetrics] = useState(null);
+  const [products, setProducts] = useState([]);
+  const [customers, setCustomers] = useState([]);
+  const [filterMonth, setFilterMonth] = useState("");
 
-  useEffect(() => {
-    fetchPartners();
-  }, []);
+  const COLORS = ["#2563eb", "#16a34a", "#f97316", "#9333ea", "#dc2626"];
 
-  const fetchPartners = async () => {
-    setLoading(true);
-    try {
-      const res = await api.get("/partners");
-      setPartners(res.data || []);
-    } catch (err) {
-      console.error(err);
-      alert("Erro ao buscar parceiros");
-    } finally {
-      setLoading(false);
-    }
+  const fetchData = () => {
+    const token = localStorage.getItem("token");
+    const headers = { "Authorization": `Bearer ${token}` };
+    const query = filterMonth ? `?month=${filterMonth}` : "";
+
+    fetch(`http://localhost:8080/metrics${query}`, { headers })
+      .then(res => res.json())
+      .then(setMetrics)
+      .catch(console.error);
+
+    fetch(`http://localhost:8080/products${query}`, { headers })
+      .then(res => res.json())
+      .then(setProducts)
+      .catch(console.error);
+
+    fetch(`http://localhost:8080/customers${query}`, { headers })
+      .then(res => res.json())
+      .then(setCustomers)
+      .catch(console.error);
   };
 
-  const filtered = partners.filter(p => {
-    const q = filter.trim().toLowerCase();
-    if (q && !(p.name || "").toLowerCase().includes(q)) return false;
-    if (monthFilter) {
-      if (!p.months || !p.months.includes(monthFilter)) return false;
-    }
-    return true;
-  });
+  useEffect(() => { fetchData(); }, [filterMonth]);
 
-  const totalPartners = partners.length;
+  if (!metrics) return <p style={{ textAlign: "center", marginTop: 50 }}>Sem dados.</p>;
 
   return (
-    <div style={styles.page}>
-      <div style={styles.header}>
-        <h2>Dashboard</h2>
-        <div style={{ display: "flex", gap: 8 }}>
-          <input placeholder="Pesquisar parceiro..." value={filter} onChange={e => setFilter(e.target.value)} style={styles.search} />
-          <select value={monthFilter} onChange={e => setMonthFilter(e.target.value)} style={styles.select}>
-            <option value="">Todos os meses</option>
-            <option value="2025-01">Jan 2025</option>
-            <option value="2025-02">Fev 2025</option>
-            {/* {} */}
-          </select>
-          <button style={styles.primary} onClick={() => navigate("/import")}>Ir para Import</button>
-        </div>
+    <div style={{ padding: 20, fontFamily: "Arial, sans-serif", background: "#f4f4f4", minHeight: "100vh" }}>
+      <h1 style={{ fontSize: 28, fontWeight: "bold", marginBottom: 20 }}>Dashboard Financeiro</h1>
+
+      {/* Filtro de mês */}
+      <div style={{ marginBottom: 20 }}>
+        <label>Mês:</label>
+        <select value={filterMonth} onChange={e => setFilterMonth(e.target.value)} style={{ marginLeft: 10 }}>
+          <option value="">Todos</option>
+          <option value="2025-01">Jan 2025</option>
+          <option value="2025-02">Fev 2025</option>
+          <option value="2025-03">Mar 2025</option>
+        </select>
       </div>
 
-      <div style={styles.cards}>
-        <div style={styles.card}>
-          <div style={styles.cardTitle}>Total de Parceiros</div>
-          <div style={styles.cardNumber}>{totalPartners}</div>
-        </div>
-
-        <div style={styles.card}>
-          <div style={styles.cardTitle}>Parceiros Filtrados</div>
-          <div style={styles.cardNumber}>{filtered.length}</div>
-        </div>
+      {/* Cards Totalizadores */}
+      <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+        <div style={cardStyle}><div>Total Registros</div><div style={numberStyle}>{metrics.total_records}</div></div>
+        <div style={cardStyle}><div>Total Clientes</div><div style={numberStyle}>{metrics.total_customers}</div></div>
+        <div style={cardStyle}><div>Total Produtos</div><div style={numberStyle}>{metrics.total_products}</div></div>
+        <div style={cardStyle}><div>Total Receita</div><div style={numberStyle}>{metrics.total_revenue.toFixed(2)}</div></div>
       </div>
 
-      <div style={{ marginTop: 18 }}>
-        {loading ? <div>Carregando...</div> : (
-          <ul style={styles.list}>
-            {filtered.map(p => (
-              <li key={p.id} style={styles.item}>
-                <div><strong>{p.name}</strong></div>
-                <div style={{ color: "#6b7280", fontSize: 13 }}>{p.domain || p.email || ""}</div>
-              </li>
-            ))}
-          </ul>
-        )}
+      {/* Gráficos */}
+      <div style={{ display: "flex", gap: 20, marginTop: 40, flexWrap: "wrap" }}>
+        <div style={{ flex: 1, minWidth: 300, height: 300, background: "#fff", padding: 20, borderRadius: 8 }}>
+          <h3>Top Produtos</h3>
+          <ResponsiveContainer width="100%" height="80%">
+            <BarChart data={products}>
+              <XAxis dataKey="product" />
+              <YAxis />
+              <Tooltip />
+              <Bar dataKey="total" fill="#2563eb" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div style={{ flex: 1, minWidth: 300, height: 300, background: "#fff", padding: 20, borderRadius: 8 }}>
+          <h3>Top Clientes</h3>
+          <ResponsiveContainer width="100%" height="80%">
+            <PieChart>
+              <Pie
+                data={customers}
+                dataKey="total"
+                nameKey="customer"
+                cx="50%"
+                cy="50%"
+                outerRadius={80}
+                label
+              >
+                {customers.map((entry, index) => (
+                  <Cell key={index} fill={COLORS[index % COLORS.length]} />
+                ))}
+              </Pie>
+              <Tooltip />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
       </div>
     </div>
   );
 }
 
-const styles = {
-  page: { maxWidth: 1100, margin: "20px auto", padding: "0 16px" },
-  header: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 18 },
-  search: { padding: "8px 10px", borderRadius: 8, border: "1px solid #e6e9ee" },
-  select: { padding: "8px 10px", borderRadius: 8, border: "1px solid #e6e9ee" },
-  primary: { padding: "8px 12px", borderRadius: 8, border: "none", background: "#2563eb", color: "#fff", cursor: "pointer" },
-  cards: { display: "flex", gap: 12, marginBottom: 12 },
-  card: { flex: 1, padding: 18, borderRadius: 12, background: "#fff", boxShadow: "0 6px 18px rgba(15,23,42,0.04)" },
-  cardTitle: { fontSize: 13, color: "#6b7280" },
-  cardNumber: { marginTop: 8, fontSize: 24, fontWeight: 800, color: "#111827" },
-  list: { listStyle: "none", padding: 0, marginTop: 8 },
-  item: { padding: 12, background: "#fff", borderRadius: 10, boxShadow: "0 2px 10px rgba(0,0,0,0.03)", marginBottom: 10 },
-};
+const cardStyle = { flex: "1 1 200px", padding: 20, background: "#fff", borderRadius: 8, boxShadow: "0 2px 10px rgba(0,0,0,0.1)" };
+const numberStyle = { marginTop: 10, fontSize: 22, fontWeight: "bold" };

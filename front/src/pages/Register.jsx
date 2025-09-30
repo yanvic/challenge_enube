@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import api from "../api";
 
 export default function Register() {
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -12,7 +13,7 @@ export default function Register() {
     e.preventDefault();
     setLoading(true);
     try {
-      await api.post("/register", { email, password });
+      await api.post("/register", { username, email, password });
       alert("Cadastro realizado com sucesso!");
       navigate("/login");
     } catch (err) {
@@ -27,6 +28,7 @@ export default function Register() {
       <div style={styles.card}>
         <h2 style={styles.title}>Cadastro</h2>
         <form onSubmit={handleSubmit} style={styles.form}>
+          <input type="text" placeholder="Username" value={username} onChange={e => setUsername(e.target.value)} style={styles.input} />
           <input autoFocus type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} style={styles.input} />
           <input type="password" placeholder="Senha" value={password} onChange={e => setPassword(e.target.value)} style={styles.input} />
           <button type="submit" style={styles.button} disabled={loading}>{loading ? "Cadastrando..." : "Cadastrar"}</button>
